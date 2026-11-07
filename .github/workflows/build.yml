@@ -25,67 +25,10 @@ jobs:
         run: |
           $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "ndk;29.0.13846066"
 
-      - name: Apply Android 15 Network & ERR_CACHE_MISS Patch
+      - name: Apply Android 15 Network & IMEI Settings Patch
         run: |
-          python3 -c "
-          iam_path = 'Bcore/src/main/java/top/niunaijun/blackbox/fake/service/IActivityManagerProxy.java'
-          with open(iam_path, 'r', encoding='utf-8') as f:
-              code = f.read()
-
-          target = 'if (permission.equals(Manifest.permission.ACCOUNT_MANAGER)'
-          replacement = '''if (isNetworkPermission(permission)) {
-                          return PackageManager.PERMISSION_GRANTED;
-                      }
-                      if (permission.equals(Manifest.permission.ACCOUNT_MANAGER)'''
-          if target in code:
-              code = code.replace(target, replacement, 1)
-
-          check_device_target = '@ProxyMethod(\"checkPermission\")'
-          check_device_code = '''@ProxyMethod(\"checkPermissionForDevice\")
-              public static class checkPermissionForDevice extends MethodHook {
-                  @Override
-                  protected Object hook(Object who, Method method, Object[] args) throws Throwable {
-                      String permission = (String) args[0];
-                      if (isNetworkPermission(permission) || isAudioPermission(permission) || isStorageOrMediaPermission(permission)) {
-                          return PackageManager.PERMISSION_GRANTED;
-                      }
-                      return method.invoke(who, args);
-                  }
-              }
-
-              private static boolean isNetworkPermission(String permission) {
-                  if (permission == null) return false;
-                  return permission.equals(Manifest.permission.INTERNET)
-                          || permission.equals(Manifest.permission.ACCESS_NETWORK_STATE)
-                          || permission.equals(Manifest.permission.ACCESS_WIFI_STATE)
-                          || permission.equals(Manifest.permission.CHANGE_NETWORK_STATE)
-                          || permission.equals(Manifest.permission.CHANGE_WIFI_STATE)
-                          || permission.equals(\"android.permission.CHANGE_WIFI_MULTICAST_STATE\");
-              }
-
-              @ProxyMethod(\"checkPermission\")'''
-
-          if check_device_target in code:
-              code = code.replace(check_device_target, check_device_code, 1)
-
-          with open(iam_path, 'w', encoding='utf-8') as f:
-              f.write(code)
-
-          ipm_path = 'Bcore/src/main/java/top/niunaijun/blackbox/fake/service/IPermissionManagerProxy.java'
-          with open(ipm_path, 'r', encoding='utf-8') as f:
-              ipm_code = f.read()
-
-          ipm_target = 'addMethodHook(new PkgMethodProxy(\"shouldShowRequestPermissionRationale\"));'
-          ipm_replacement = '''addMethodHook(new PkgMethodProxy(\"shouldShowRequestPermissionRationale\"));
-                  addMethodHook(new ValueMethodProxy(\"checkPermission\", PackageManager.PERMISSION_GRANTED));
-                  addMethodHook(new ValueMethodProxy(\"checkUidPermission\", PackageManager.PERMISSION_GRANTED));'''
-          if ipm_target in ipm_code:
-              ipm_code = ipm_code.replace(ipm_target, ipm_replacement, 1)
-
-          with open(ipm_path, 'w', encoding='utf-8') as f:
-              f.write(ipm_code)
-          print('Successfully applied Android 15 Network permissions patch!')
-          "
+          echo "aW1wb3J0IG9zLCB4bWwuZXRyZWUuRWxlbWVudFRyZWUgYXMgRVQKCiMgMS4gQW5kcm9pZCAxNSBOZXR3b3JrICYgV2ViVmlldyBFUlJfQ0FDSEVfTUlTUyBQYXRjaAppYW1fcGF0aCA9ICdCY29yZS9zcmMvbWFpbi9qYXZhL3RvcC9uaXVuYWlqdW4vYmxhY2tib3gvZmFrZS9zZXJ2aWNlL0lBY3Rpdml0eU1hbmFnZXJQcm94eS5qYXZhJwp3aXRoIG9wZW4oaWFtX3BhdGgsICdyJywgZW5jb2Rpbmc9J3V0Zi04JykgYXMgZjoKICAgIGNvZGUgPSBmLnJlYWQoKQoKdGFyZ2V0ID0gJ2lmIChwZXJtaXNzaW9uLmVxdWFscyhNYW5pZmVzdC5wZXJtaXNzaW9uLkFDQ09VTlRfTUFOQUdFUiknCnJlcGxhY2VtZW50ID0gIiIiaWYgKGlzTmV0d29ya1Blcm1pc3Npb24ocGVybWlzc2lvbikpIHsKICAgICAgICAgICAgICAgIHJldHVybiBQYWNrYWdlTWFuYWdlci5QRVJNSVNTSU9OX0dSQU5URUQ7CiAgICAgICAgICAgIH0KICAgICAgICAgICAgaWYgKHBlcm1pc3Npb24uZXF1YWxzKE1hbmlmZXN0LnBlcm1pc3Npb24uQUNDT1VOVF9NQU5BR0VSKSIiIgppZiB0YXJnZXQgaW4gY29kZToKICAgIGNvZGUgPSBjb2RlLnJlcGxhY2UodGFyZ2V0LCByZXBsYWNlbWVudCwgMSkKCmNoZWNrX2RldmljZV90YXJnZXQgPSAnQFByb3h5TWV0aG9kKCJjaGVja1Blcm1pc3Npb24iKScKY2hlY2tfZGV2aWNlX2NvZGUgPSAiIiJAUHJveHlNZXRob2QoImNoZWNrUGVybWlzc2lvbkZvckRldmljZSIpCiAgICBwdWJsaWMgc3RhdGljIGNsYXNzIGNoZWNrUGVybWlzc2lvbkZvckRldmljZSBleHRlbmRzIE1ldGhvZEhvb2sgewogICAgICAgIEBPdmVycmlkZQogICAgICAgIHByb3RlY3RlZCBPYmplY3QgaG9vayhPYmplY3Qgd2hvLCBNZXRob2QgbWV0aG9kLCBPYmplY3RbXSBhcmdzKSB0aHJvd3MgVGhyb3dhYmxlIHsKICAgICAgICAgICAgU3RyaW5nIHBlcm1pc3Npb24gPSAoU3RyaW5nKSBhcmdzWzBdOwogICAgICAgICAgICBpZiAoaXNOZXR3b3JrUGVybWlzc2lvbihwZXJtaXNzaW9uKSB8fCBpc0F1ZGlvUGVybWlzc2lvbihwZXJtaXNzaW9uKSB8fCBpc1N0b3JhZ2VPck1lZGlhUGVybWlzc2lvbihwZXJtaXNzaW9uKSkgewogICAgICAgICAgICAgICAgcmV0dXJuIFBhY2thZ2VNYW5hZ2VyLlBFUk1JU1NJT05fR1JBTlRFRDsKICAgICAgICAgICAgfQogICAgICAgICAgICByZXR1cm4gbWV0aG9kLmludm9rZSh3aG8sIGFyZ3MpOwogICAgICAgIH0KICAgIH0KCiAgICBwcml2YXRlIHN0YXRpYyBib29sZWFuIGlzTmV0d29ya1Blcm1pc3Npb24oU3RyaW5nIHBlcm1pc3Npb24pIHsKICAgICAgICBpZiAocGVybWlzc2lvbiA9PSBudWxsKSByZXR1cm4gZmFsc2U7CiAgICAgICAgcmV0dXJuIHBlcm1pc3Npb24uZXF1YWxzKE1hbmlmZXN0LnBlcm1pc3Npb24uSU5URVJORVQpCiAgICAgICAgICAgICAgICB8fCBwZXJtaXNzaW9uLmVxdWFscyhNYW5pZmVzdC5wZXJtaXNzaW9uLkFDQ0VTU19ORVRXT1JLX1NUQVRFKQogICAgICAgICAgICAgICAgfHwgcGVybWlzc2lvbi5lcXVhbHMoTWFuaWZlc3QucGVybWlzc2lvbi5BQ0NFU1NfV0lGSV9TVEFURSkKICAgICAgICAgICAgICAgIHx8IHBlcm1pc3Npb24uZXF1YWxzKE1hbmlmZXN0LnBlcm1pc3Npb24uQ0hBTkdFX05FVFdPUktfU1RBVEUpCiAgICAgICAgICAgICAgICB8fCBwZXJtaXNzaW9uLmVxdWFscyhNYW5pZmVzdC5wZXJtaXNzaW9uLkNIQU5HRV9XSUZJX1NUQVRFKQogICAgICAgICAgICAgICAgfHwgcGVybWlzc2lvbi5lcXVhbHMoImFuZHJvaWQucGVybWlzc2lvbi5DSEFOR0VfV0lGSV9NVUxUSUNBU1RfU1RBVEUiKTsKICAgIH0KCiAgICBAUHJveHlNZXRob2QoImNoZWNrUGVybWlzc2lvbiIpIiIiCgppZiBjaGVja19kZXZpY2VfdGFyZ2V0IGluIGNvZGU6CiAgICBjb2RlID0gY29kZS5yZXBsYWNlKGNoZWNrX2RldmljZV90YXJnZXQsIGNoZWNrX2RldmljZV9jb2RlLCAxKQoKd2l0aCBvcGVuKGlhbV9wYXRoLCAndycsIGVuY29kaW5nPSd1dGYtOCcpIGFzIGY6CiAgICBmLndyaXRlKGNvZGUpCgppcG1fcGF0aCA9ICdCY29yZS9zcmMvbWFpbi9qYXZhL3RvcC9uaXVuYWlqdW4vYmxhY2tib3gvZmFrZS9zZXJ2aWNlL0lQZXJtaXNzaW9uTWFuYWdlclByb3h5LmphdmEnCndpdGggb3BlbihpcG1fcGF0aCwgJ3InLCBlbmNvZGluZz0ndXRmLTgnKSBhcyBmOgogICAgaXBtX2NvZGUgPSBmLnJlYWQoKQoKaXBtX3RhcmdldCA9ICdhZGRNZXRob2RIb29rKG5ldyBQa2dNZXRob2RQcm94eSgic2hvdWxkU2hvd1JlcXVlc3RQZXJtaXNzaW9uUmF0aW9uYWxlIikpOycKaXBtX3JlcGxhY2VtZW50ID0gIiIiYWRkTWV0aG9kSG9vayhuZXcgUGtnTWV0aG9kUHJveHkoInNob3VsZFNob3dSZXF1ZXN0UGVybWlzc2lvblJhdGlvbmFsZSIpKTsKICAgICAgICBhZGRNZXRob2RIb29rKG5ldyBWYWx1ZU1ldGhvZFByb3h5KCJjaGVja1Blcm1pc3Npb24iLCBQYWNrYWdlTWFuYWdlci5QRVJNSVNTSU9OX0dSQU5URUQpKTsKICAgICAgICBhZGRNZXRob2RIb29rKG5ldyBWYWx1ZU1ldGhvZFByb3h5KCJjaGVja1VpZFBlcm1pc3Npb24iLCBQYWNrYWdlTWFuYWdlci5QRVJNSVNTSU9OX0dSQU5URUQpKTsiIiIKaWYgaXBtX3RhcmdldCBpbiBpcG1fY29kZToKICAgIGlwbV9jb2RlID0gaXBtX2NvZGUucmVwbGFjZShpcG1fdGFyZ2V0LCBpcG1fcmVwbGFjZW1lbnQsIDEpCgp3aXRoIG9wZW4oaXBtX3BhdGgsICd3JywgZW5jb2Rpbmc9J3V0Zi04JykgYXMgZjoKICAgIGYud3JpdGUoaXBtX2NvZGUpCgojIDIuIEFkZCBJTUVJICYgRGV2aWNlIFByaXZhY3kgaW4gc2V0dGluZy54bWwKeG1sX3BhdGggPSAnYXBwL3NyYy9tYWluL3Jlcy94bWwvc2V0dGluZy54bWwnCndpdGggb3Blbih4bWxfcGF0aCwgJ3InLCBlbmNvZGluZz0ndXRmLTgnKSBhcyBmOgogICAgc3htbCA9IGYucmVhZCgpCgpwcmVmX2NhdGVnb3J5ID0gIiIiICAgIDxQcmVmZXJlbmNlQ2F0ZWdvcnkgYXBwOnRpdGxlPSJEZXZpY2UgUHJpdmFjeSAmYW1wOyBJTUVJIFNwb29maW5nIj4KICAgICAgICA8RWRpdFRleHRQcmVmZXJlbmNlCiAgICAgICAgICAgICAgICBhcHA6a2V5PSJjdXN0b21faW1laSIKICAgICAgICAgICAgICAgIGFwcDp0aXRsZT0iRGV2aWNlIElNRUkiCiAgICAgICAgICAgICAgICBhcHA6ZGlhbG9nVGl0bGU9IkVudGVyIDE1LURpZ2l0IElNRUkiCiAgICAgICAgICAgICAgICBhcHA6ZGVmYXVsdFZhbHVlPSIzNTgyNDkxMTAyOTQ4MTIiCiAgICAgICAgICAgICAgICBhcHA6c3VtbWFyeT0iRGVmYXVsdDogU2Ftc3VuZyBTMjYrICgzNTgyNDkxMTAyOTQ4MTIpIiAvPgogICAgPC9QcmVmZXJlbmNlQ2F0ZWdvcnk+CgogICAgPFByZWZlcmVuY2VDYXRlZ29yeSBhcHA6dGl0bGU9IkBzdHJpbmcvb3RoZXIiPiIiIgoKaWYgJzxQcmVmZXJlbmNlQ2F0ZWdvcnkgYXBwOnRpdGxlPSJAc3RyaW5nL290aGVyIj4nIGluIHN4bWw6CiAgICBzeG1sID0gc3htbC5yZXBsYWNlKCc8UHJlZmVyZW5jZUNhdGVnb3J5IGFwcDp0aXRsZT0iQHN0cmluZy9vdGhlciI+JywgcHJlZl9jYXRlZ29yeSwgMSkKICAgIHdpdGggb3Blbih4bWxfcGF0aCwgJ3cnLCBlbmNvZGluZz0ndXRmLTgnKSBhcyBmOgogICAgICAgIGYud3JpdGUoc3htbCkKCiMgMy4gQmluZCBJTUVJIFByZWZlcmVuY2UgaW4gU2V0dGluZ0ZyYWdtZW50Lmt0Cmt0X3BhdGggPSAnYXBwL3NyYy9tYWluL2phdmEvdG9wL25pdW5haWp1bi9ibGFja2JveGEvdmlldy9zZXR0aW5nL1NldHRpbmdGcmFnbWVudC5rdCcKd2l0aCBvcGVuKGt0X3BhdGgsICdyJywgZW5jb2Rpbmc9J3V0Zi04JykgYXMgZjoKICAgIHNrdCA9IGYucmVhZCgpCgp0YXJnZXRfa3QgPSAnaW5pdEdtcygpJwpyZXBsX2t0ID0gIiIiaW5pdEdtcygpCiAgICAgICAgdmFsIGltZWlQcmVmOiBhbmRyb2lkeC5wcmVmZXJlbmNlLkVkaXRUZXh0UHJlZmVyZW5jZT8gPSBmaW5kUHJlZmVyZW5jZSgiY3VzdG9tX2ltZWkiKQogICAgICAgIGltZWlQcmVmPy5zdW1tYXJ5UHJvdmlkZXIgPSBhbmRyb2lkeC5wcmVmZXJlbmNlLkVkaXRUZXh0UHJlZmVyZW5jZS5TaW1wbGVTdW1tYXJ5UHJvdmlkZXIuZ2V0SW5zdGFuY2UoKSIiIgoKaWYgdGFyZ2V0X2t0IGluIHNrdDoKICAgIHNrdCA9IHNrdC5yZXBsYWNlKHRhcmdldF9rdCwgcmVwbF9rdCwgMSkKICAgIHdpdGggb3BlbihrdF9wYXRoLCAndycsIGVuY29kaW5nPSd1dGYtOCcpIGFzIGY6CiAgICAgICAgZi53cml0ZShza3QpCgojIDQuIFRlbGVwaG9ueSBJTUVJIEhvb2sgaW4gSVRlbGVwaG9ueU1hbmFnZXJQcm94eS5qYXZhCml0bV9wYXRoID0gJ0Jjb3JlL3NyYy9tYWluL2phdmEvdG9wL25pdW5haWp1bi9ibGFja2JveC9mYWtlL3NlcnZpY2UvSVRlbGVwaG9ueU1hbmFnZXJQcm94eS5qYXZhJwp3aXRoIG9wZW4oaXRtX3BhdGgsICdyJywgZW5jb2Rpbmc9J3V0Zi04JykgYXMgZjoKICAgIGl0bSA9IGYucmVhZCgpCgp0YXJnZXRfaG9vayA9ICdyZXR1cm4gTWQ1VXRpbHMubWQ1KEJsYWNrQm94Q29yZS5nZXRIb3N0UGtnKCkpOycKcmVwbF9ob29rID0gIiIidHJ5IHsKICAgICAgICAgICAgICAgIGFuZHJvaWQuY29udGVudC5Db250ZXh0IGN0eCA9IEJsYWNrQm94Q29yZS5nZXRDb250ZXh0KCk7CiAgICAgICAgICAgICAgICBpZiAoY3R4ICE9IG51bGwpIHsKICAgICAgICAgICAgICAgICAgICBhbmRyb2lkLmNvbnRlbnQuU2hhcmVkUHJlZmVyZW5jZXMgc3AgPSBjdHguZ2V0U2hhcmVkUHJlZmVyZW5jZXMoQmxhY2tCb3hDb3JlLmdldEhvc3RQa2coKSArICJfcHJlZmVyZW5jZXMiLCBhbmRyb2lkLmNvbnRlbnQuQ29udGV4dC5NT0RFX1BSSVZBVEUpOwogICAgICAgICAgICAgICAgICAgIFN0cmluZyBpbWVpID0gc3AuZ2V0U3RyaW5nKCJjdXN0b21faW1laSIsICIzNTgyNDkxMTAyOTQ4MTIiKTsKICAgICAgICAgICAgICAgICAgICBpZiAoaW1laSAhPSBudWxsICYmICFpbWVpLnRyaW0oKS5pc0VtcHR5KCkpIHsKICAgICAgICAgICAgICAgICAgICAgICAgcmV0dXJuIGltZWkudHJpbSgpOwogICAgICAgICAgICAgICAgICAgIH0KICAgICAgICAgICAgICAgIH0KICAgICAgICAgICAgfSBjYXRjaCAoVGhyb3dhYmxlIGlnbm9yZWQpIHt9CiAgICAgICAgICAgIHJldHVybiAiMzU4MjQ5MTEwMjk0ODEyIjsiIiIKCmlmIHRhcmdldF9ob29rIGluIGl0bToKICAgIGl0bSA9IGl0bS5yZXBsYWNlKHRhcmdldF9ob29rLCByZXBsX2hvb2spCiAgICB3aXRoIG9wZW4oaXRtX3BhdGgsICd3JywgZW5jb2Rpbmc9J3V0Zi04JykgYXMgZjoKICAgICAgICBmLndyaXRlKGl0bSkKCnByaW50KCdBbGwgTmV3QmxhY2tib3ggcGF0Y2hlcyBpbmplY3RlZCBjbGVhbmx5IScpCg==" | base64 -d > patch.py
+          python3 patch.py
 
       - name: Grant execute permission for gradlew
         run: chmod +x ./gradlew
